@@ -1,6 +1,6 @@
 name: Frontend Deploy
 
-# Trigger the workflow on push to master branch (غير main لو الفرع عندك master)
+# Trigger the workflow on push to master branch
 on:
   push:
     branches:
@@ -20,6 +20,15 @@ jobs:
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.FRONTEND_SSH_KEY }}
+
+      # Install Docker & Docker Compose
+      - name: Install Docker & Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
 
       # Build Frontend using docker-compose
       - name: Build Frontend
