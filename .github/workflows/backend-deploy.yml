@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          repository: https://github.com/Uliwazeer/uptime-kuma.git
+          repository: Uliwazeer/uptime-kuma.git
           token: ${{ secrets.GITHUB_TOKEN }}
           path: backend
 
