@@ -43,6 +43,17 @@ jobs:
               git pull
             fi
 
-            composer install --no-dev --optimize-autoloader
-            php artisan migrate --force
+            if [ -f composer.json ]; then
+              composer install --no-dev --optimize-autoloader
+            else
+              echo "composer.json not found!"
+              exit 1
+            fi
+
+            if [ -f artisan ]; then
+              php artisan migrate --force
+            else
+              echo "artisan file not found!"
+              exit 1
+            fi
           EOF
