@@ -10,48 +10,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository using HTTPS
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      # Setup SSH key
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.7.0
         with:
-          repository: Uliwazeer/uptime-kuma
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: backend
+          ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Install Docker & Docker Compose
-      - name: Install Docker & Docker Compose
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sudo sh get-docker.sh
-          sudo usermod -aG docker $USER
-          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-          sudo chmod +x /usr/local/bin/docker-compose
-          docker --version
-          docker-compose --version
-
-      # Setup PHP & Composer (لو محتاجينها لتشغيل Laravel أو أي مشروع PHP)
-      - name: Install PHP & Composer
+      # Install PHP, Composer, Git
+      - name: Install PHP, Composer & Git
         run: |
           sudo apt update
           sudo apt install -y php-cli unzip curl git
           curl -sS https://getcomposer.org/installer | php
           sudo mv composer.phar /usr/local/bin/composer
           composer --version
-          php --version
 
       # Deploy to EC2 server
-      - name: Deploy to server
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
-
-      - name: SSH Commands
+      - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
             mkdir -p ~/backend &&
             cd ~/backend &&
-            git reset --hard &&
-            git pull https://github.com/Uliwazeer/uptime-kuma.git master &&
-            docker-compose -f docker-compose/docker-compose.yml pull &&
-            docker-compose -f docker-compose/docker-compose.yml up -d
+
+            if [ ! -d .git ]; then
+              git clone https://github.com/Uliwazeer/uptime-kuma.git .
+            else
+              git reset --hard &&
+              git pull
+            fi &&
+
+            composer install --no-dev --optimize-autoloader &&
+            php artisan migrate --force
           "
