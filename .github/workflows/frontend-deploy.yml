@@ -1,28 +1,33 @@
 name: Frontend Deploy
 
+# Trigger the workflow on push to master branch (غير main لو الفرع عندك master)
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # Setup SSH key from GitHub Secrets
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.FRONTEND_SSH_KEY }}
 
+      # Build Frontend using docker-compose
       - name: Build Frontend
         run: |
           echo "Building Frontend..."
           docker-compose -f docker-compose.yml build
 
+      # Deploy to EC2 server
       - name: Deploy to server
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.36.156 "cd ~/frontend && docker-compose -f docker-compose.yml pull && docker-compose -f docker-compose.yml up -d"
