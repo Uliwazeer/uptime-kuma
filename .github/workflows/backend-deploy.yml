@@ -32,17 +32,17 @@ jobs:
       # Deploy to EC2 server
       - name: Deploy to EC2 Backend
         run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
-            mkdir -p ~/backend &&
-            cd ~/backend &&
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
+            mkdir -p ~/backend
+            cd ~/backend
 
             if [ ! -d .git ]; then
               git clone https://github.com/Uliwazeer/uptime-kuma.git .
             else
-              git reset --hard &&
+              git reset --hard
               git pull
-            fi &&
+            fi
 
-            composer install --no-dev --optimize-autoloader &&
+            composer install --no-dev --optimize-autoloader
             php artisan migrate --force
-          "
+          EOF
