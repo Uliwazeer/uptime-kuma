@@ -1,26 +1,20 @@
 name: Backend Deploy
-
 on:
   push:
     branches:
       - master
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      # Setup SSH key
+      
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
-
-      # Setup Node.js & PM2 on Server
+      
       - name: Setup Node.js & PM2 on Server
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
@@ -29,42 +23,34 @@ jobs:
               curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
               sudo apt-get install -y nodejs
             fi
-
             echo "📦 Installing PM2 globally..."
             if ! command -v pm2 > /dev/null; then
               sudo npm install -g pm2
             fi
-
             echo "🔧 Setting up PM2 startup..."
-            pm2 startup systemd -u ubuntu --hp /home/ubuntu
-
+            pm2 startup systemd -u ubuntu --hp /home/ubuntu || true
             echo "✅ Verifying installation..."
             node --version
             npm --version
             pm2 --version
           EOF
-
-      # Deploy to EC2 server
+      
       - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
             echo "📁 Navigating to backend directory..."
             cd ~/backend
-
             echo "🔄 Pulling latest changes..."
             git reset --hard
             git pull origin master
-
             echo "📦 Installing dependencies..."
             npm install --production
-
             echo "🔨 Building the project..."
             if grep -q '"build"' package.json; then
               npm run build
             else
               echo "No build script found, skipping build step."
             fi
-
             echo "🚀 Restarting application with PM2..."
             if [ -f ecosystem.config.js ]; then
               pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
@@ -74,55 +60,8 @@ jobs:
               echo "Starting new PM2 process..."
               pm2 start ecosystem.config.js
             fi
-
             echo "💾 Saving PM2 process list..."
             pm2 save
-
             echo "✅ Deployment completed successfully!"
             pm2 status
-          EOF
-
-      # Setup Nginx + PHP-FPM for Laravel backend
-      - name: Setup Nginx & PHP-FPM
-        run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
-            echo "📥 Installing Nginx, PHP-FPM & PHP MySQL extension..."
-            sudo apt update
-            sudo apt install -y nginx php-fpm php-mysql
-
-            echo "📝 Configuring Nginx site..."
-            sudo tee /etc/nginx/sites-available/backend > /dev/null <<'NGINX_CONF'
-server {
-    listen 8080;
-
-    server_name _;
-
-    root /home/ubuntu/backend/public;
-
-    index index.php index.html;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location ~ \.php$ {
-        include snippets/fastcgi-php.conf;
-        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        include fastcgi_params;
-    }
-}
-NGINX_CONF
-
-            echo "🔗 Enabling site & reloading Nginx..."
-            sudo ln -sf /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
-            sudo nginx -t
-            sudo systemctl reload nginx
-
-            echo "🔧 Setting permissions for Laravel..."
-            sudo chown -R www-data:www-data /home/ubuntu/backend
-            sudo chmod -R 775 /home/ubuntu/backend/storage
-            sudo chmod -R 775 /home/ubuntu/backend/bootstrap/cache
-
-            echo "✅ Laravel backend is ready on port 8080"
           EOF
