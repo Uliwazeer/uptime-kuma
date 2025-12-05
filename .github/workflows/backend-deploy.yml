@@ -3,14 +3,14 @@ name: Backend Deploy
 on:
   push:
     branches:
-      - master  # غيّر حسب اسم الفرع عندك
+      - master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
+      # Checkout repository (لتحديث الريبو المحلي لو حبيت)
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -20,26 +20,28 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Install PHP, Composer & Git on the server
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y php-cli unzip git curl composer
-
       # Deploy to EC2 server
       - name: Deploy to server
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
+            # تثبيت PHP و Composer و Git لو مش موجودين
+            sudo apt-get update
+            sudo apt-get install -y php-cli unzip git curl
+            curl -sS https://getcomposer.org/installer | php
+            sudo mv composer.phar /usr/local/bin/composer
+
             # تأكد من وجود مجلد backend
             mkdir -p ~/backend
             cd ~/backend
-            # إذا المجلد فارغ، اعمل clone، لو موجود اعمل pull
+
+            # Clone أو pull باستخدام SSH
             if [ ! -d .git ]; then
-              git clone https://github.com/Uliwazeer/laravel.git .
+              git clone git@github.com:Uliwazeer/laravel.git .
             else
               git pull
             fi
-            # تثبيت الـ dependencies وتشغيل المايجريشن
+
+            # تثبيت dependencies وتشغيل المايجريشن
             composer install
             php artisan migrate --force
           "
