@@ -44,7 +44,7 @@ jobs:
             pm2 --version
           EOF
 
-      # Deploy Laravel Backend + Setup Nginx + PHP-FPM
+      # Deploy to EC2 Backend
       - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
@@ -65,12 +65,28 @@ jobs:
               echo "No build script found, skipping build step."
             fi
 
-            echo "💻 Installing Nginx & PHP-FPM..."
+            echo "🚀 Restarting application with PM2..."
+            if [ -f ecosystem.config.js ]; then
+              pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
+            elif pm2 list | grep -q "uptime-kuma"; then
+              pm2 restart uptime-kuma
+            else
+              echo "Starting new PM2 process..."
+              pm2 start ecosystem.config.js
+            fi
+
+            echo "💾 Saving PM2 process list..."
+            pm2 save
+
+            echo "✅ Deployment completed successfully!"
+            pm2 status
+
+            echo "3️⃣ Installing Nginx & PHP-FPM..."
             sudo apt update
             sudo apt install -y nginx php-fpm php-mysql
 
-            echo "📝 Configuring Nginx for Laravel..."
-            sudo tee /etc/nginx/sites-available/backend > /dev/null <<'NGINXCONF'
+            echo "🔧 Configuring Nginx for Laravel..."
+            sudo tee /etc/nginx/sites-available/backend > /dev/null << 'NGINXCONF'
 server {
     listen 8080;
 
@@ -93,28 +109,14 @@ server {
 }
 NGINXCONF
 
-            sudo ln -sf /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
+            sudo ln -s /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
             sudo nginx -t
             sudo systemctl reload nginx
 
-            echo "🔒 Setting Laravel folder permissions..."
+            echo "🔒 Setting permissions for Laravel..."
             sudo chown -R www-data:www-data /home/ubuntu/backend
             sudo chmod -R 775 /home/ubuntu/backend/storage
             sudo chmod -R 775 /home/ubuntu/backend/bootstrap/cache
 
-            echo "🚀 Restarting application with PM2..."
-            if [ -f ecosystem.config.js ]; then
-              pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
-            elif pm2 list | grep -q "uptime-kuma"; then
-              pm2 restart uptime-kuma
-            else
-              echo "Starting new PM2 process..."
-              pm2 start ecosystem.config.js
-            fi
-
-            echo "💾 Saving PM2 process list..."
-            pm2 save
-
-            echo "✅ Deployment completed successfully!"
-            pm2 status
+            echo "✅ Backend deployed and Laravel is running on port 8080!"
           EOF
