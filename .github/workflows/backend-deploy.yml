@@ -1,62 +1,62 @@
 name: Backend Deploy
-
 on:
   push:
     branches:
       - master
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
-
+      
       # Setup SSH key
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
-
-      # Install PHP, Composer & Git
-      - name: Install PHP, Composer & Git
-        run: |
-          sudo apt update
-          sudo apt install -y php-cli unzip curl git
-          curl -sS https://getcomposer.org/installer | php
-          sudo mv composer.phar /usr/local/bin/composer
-          composer --version
-
+      
       # Deploy to EC2 server
       - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
+            # Create backend directory
             mkdir -p ~/backend
             cd ~/backend
-
+            
+            # Clone or pull repository
             if [ ! -d .git ]; then
               echo "Cloning repository..."
               git clone https://github.com/Uliwazeer/uptime-kuma.git .
             else
               echo "Pulling latest changes..."
               git reset --hard
-              git pull
+              git pull origin master
             fi
-
-            if [ -f composer.json ]; then
-              echo "Installing Composer dependencies..."
-              composer install --no-dev --optimize-autoloader
+            
+            # Check if package.json exists (Node.js app)
+            if [ -f package.json ]; then
+              echo "Installing Node.js dependencies..."
+              npm install --production
+              
+              echo "Building application..."
+              npm run build || echo "No build script found, skipping..."
+              
+              # Restart the application using PM2
+              if command -v pm2 &> /dev/null; then
+                echo "Restarting application with PM2..."
+                pm2 restart uptime-kuma || pm2 start npm --name "uptime-kuma" -- start
+                pm2 save
+              else
+                echo "PM2 not found. Please install PM2 to manage the application."
+                echo "Run: npm install -g pm2"
+              fi
             else
-              echo "composer.json not found! Check if git clone worked correctly."
+              echo "package.json not found! Check if git clone worked correctly."
+              ls -la
               exit 1
             fi
-
-            if [ -f artisan ]; then
-              echo "Running migrations..."
-              php artisan migrate --force
-            else
-              echo "artisan file not found, skipping migrations."
-            fi
+            
+            echo "Deployment completed successfully!"
           EOF
