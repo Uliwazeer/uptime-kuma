@@ -1,10 +1,9 @@
 name: Backend Deploy
 
-# Trigger the workflow on push to master branch (غير main لو الفرع عندك master)
 on:
   push:
     branches:
-      - master
+      - master  # غيّر حسب اسم الفرع عندك
 
 jobs:
   deploy:
@@ -21,18 +20,26 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Install PHP & Composer (Laravel dependencies)
-      - name: Setup PHP and Composer
+      # Install PHP, Composer & Git on the server
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y php-cli unzip curl php-mbstring php-bcmath php-curl php-xml composer git
+          sudo apt-get install -y php-cli unzip git curl composer
 
       # Deploy to EC2 server
       - name: Deploy to server
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
-            cd ~/backend || mkdir -p ~/backend && cd ~/backend
-            git pull origin master
-            composer install --no-interaction --prefer-dist --optimize-autoloader
+            # تأكد من وجود مجلد backend
+            mkdir -p ~/backend
+            cd ~/backend
+            # إذا المجلد فارغ، اعمل clone، لو موجود اعمل pull
+            if [ ! -d .git ]; then
+              git clone https://github.com/Uliwazeer/laravel.git .
+            else
+              git pull
+            fi
+            # تثبيت الـ dependencies وتشغيل المايجريشن
+            composer install
             php artisan migrate --force
           "
