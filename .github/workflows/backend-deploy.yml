@@ -1,62 +1,59 @@
 name: Backend Deploy
+
 on:
   push:
     branches:
       - master
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
-      
+
       # Setup SSH key
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
-      
+
       # Deploy to EC2 server
       - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
-            # Create backend directory
-            mkdir -p ~/backend
+            echo "📁 Navigating to backend directory..."
             cd ~/backend
-            
-            # Clone or pull repository
-            if [ ! -d .git ]; then
-              echo "Cloning repository..."
-              git clone https://github.com/Uliwazeer/uptime-kuma.git .
+
+            echo "🔄 Pulling latest changes..."
+            git reset --hard
+            git pull origin master
+
+            echo "📦 Installing dependencies..."
+            npm install --production
+
+            echo "🔨 Building the project..."
+            if grep -q '"build"' package.json; then
+              npm run build
             else
-              echo "Pulling latest changes..."
-              git reset --hard
-              git pull origin master
+              echo "No build script found, skipping build step."
             fi
-            
-            # Check if package.json exists (Node.js app)
-            if [ -f package.json ]; then
-              echo "Installing Node.js dependencies..."
-              npm install --production
-              
-              echo "Building application..."
-              npm run build || echo "No build script found, skipping..."
-              
-              # Restart the application using PM2
-              if command -v pm2 &> /dev/null; then
-                echo "Restarting application with PM2..."
-                pm2 restart uptime-kuma || pm2 start npm --name "uptime-kuma" -- start
-                pm2 save
-              else
-                echo "PM2 not found. Please install PM2 to manage the application."
-                echo "Run: npm install -g pm2"
-              fi
+
+            echo "🚀 Restarting application with PM2..."
+            if [ -f ecosystem.config.js ]; then
+              pm2 restart ecosystem.config.js --update-env
+            elif pm2 list | grep -q "uptime-kuma"; then
+              pm2 restart uptime-kuma
             else
-              echo "package.json not found! Check if git clone worked correctly."
-              ls -la
-              exit 1
+              echo "Starting new PM2 process..."
+              pm2 start ecosystem.config.js
             fi
-            
-            echo "Deployment completed successfully!"
+
+            echo "💾 Saving PM2 process list..."
+            pm2 save
+
+            echo "✅ Deployment completed successfully!"
+            pm2 status
           EOF
