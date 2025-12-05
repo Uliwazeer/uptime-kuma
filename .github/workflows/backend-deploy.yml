@@ -20,7 +20,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Install PHP, Composer, Git
+      # Install PHP, Composer & Git
       - name: Install PHP, Composer & Git
         run: |
           sudo apt update
@@ -37,23 +37,26 @@ jobs:
             cd ~/backend
 
             if [ ! -d .git ]; then
+              echo "Cloning repository..."
               git clone https://github.com/Uliwazeer/uptime-kuma.git .
             else
+              echo "Pulling latest changes..."
               git reset --hard
               git pull
             fi
 
             if [ -f composer.json ]; then
+              echo "Installing Composer dependencies..."
               composer install --no-dev --optimize-autoloader
             else
-              echo "composer.json not found!"
+              echo "composer.json not found! Check if git clone worked correctly."
               exit 1
             fi
 
             if [ -f artisan ]; then
+              echo "Running migrations..."
               php artisan migrate --force
             else
-              echo "artisan file not found!"
-              exit 1
+              echo "artisan file not found, skipping migrations."
             fi
           EOF
