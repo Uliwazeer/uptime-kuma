@@ -10,38 +10,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository (لتحديث الريبو المحلي لو حبيت)
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          repository: Uliwazeer/uptime-kuma
+          ssh-key: ${{ secrets.BACKEND_SSH_KEY }}
+          path: backend
 
-      # Setup SSH key from GitHub Secrets
+      # Setup SSH key for EC2
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Deploy to EC2 server
-      - name: Deploy to server
+      # Install Docker & Docker Compose
+      - name: Install Docker & Docker Compose
+        run: |
+          curl -fsSL https://get.docker.com -o get-docker.sh
+          sudo sh get-docker.sh
+          sudo usermod -aG docker $USER
+          sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker --version
+          docker-compose --version
+
+      # Install PHP & Composer on EC2
+      - name: Install PHP & Composer on EC2
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
-            # تثبيت PHP و Composer و Git لو مش موجودين
-            sudo apt-get update
-            sudo apt-get install -y php-cli unzip git curl
-            curl -sS https://getcomposer.org/installer | php
-            sudo mv composer.phar /usr/local/bin/composer
+          sudo apt update
+          sudo apt install -y php-cli unzip git curl
+          curl -sS https://getcomposer.org/installer | php
+          sudo mv composer.phar /usr/local/bin/composer
+          composer --version
+          "
 
-            # تأكد من وجود مجلد backend
-            mkdir -p ~/backend
-            cd ~/backend
-
-            # Clone أو pull باستخدام SSH
-            if [ ! -d .git ]; then
-              git clone git@github.com:Uliwazeer/laravel.git .
-            else
-              git pull
-            fi
-
-            # تثبيت dependencies وتشغيل المايجريشن
-            composer install
-            php artisan migrate --force
+      # Deploy backend to EC2
+      - name: Deploy Backend
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
+          mkdir -p ~/backend
+          cd ~/backend
+          git reset --hard
+          git clean -fd
+          git pull
+          composer install --no-interaction --optimize-autoloader
+          docker-compose -f docker-compose/docker-compose.yml pull
+          docker-compose -f docker-compose/docker-compose.yml up -d
           "
