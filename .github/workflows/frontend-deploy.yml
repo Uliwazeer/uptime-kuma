@@ -1,0 +1,29 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Build Step
+      run: echo "Building Frontend..."
+
+    - name: Deploy Step
+      uses: appleboy/ssh-action@v0.1.6
+      with:
+        host: ${{ secrets.FRONTEND_SERVER_IP }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          cd /path/to/frontend
+          docker-compose pull
+          docker-compose up -d
+
