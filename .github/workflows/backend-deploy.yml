@@ -20,6 +20,30 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
+      # Setup Node.js & PM2 on Server
+      - name: Setup Node.js & PM2 on Server
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
+            echo "📥 Installing Node.js..."
+            if ! command -v node > /dev/null; then
+              curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+              sudo apt-get install -y nodejs
+            fi
+
+            echo "📦 Installing PM2 globally..."
+            if ! command -v pm2 > /dev/null; then
+              sudo npm install -g pm2
+            fi
+
+            echo "🔧 Setting up PM2 startup..."
+            pm2 startup systemd -u ubuntu --hp /home/ubuntu
+
+            echo "✅ Verifying installation..."
+            node --version
+            npm --version
+            pm2 --version
+          EOF
+
       # Deploy to EC2 server
       - name: Deploy to EC2 Backend
         run: |
@@ -43,7 +67,7 @@ jobs:
 
             echo "🚀 Restarting application with PM2..."
             if [ -f ecosystem.config.js ]; then
-              pm2 restart ecosystem.config.js --update-env
+              pm2 restart ecosystem.config.js --update-env || pm2 start ecosystem.config.js
             elif pm2 list | grep -q "uptime-kuma"; then
               pm2 restart uptime-kuma
             else
