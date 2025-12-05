@@ -1,26 +1,52 @@
-name: Backend CI/CD
+name: Backend Deploy
 
 on:
   push:
     branches:
-      - main
+      - master  # غير main لو الفرع عندك master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.BACKEND_SERVER_IP }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        script: |
-          cd /path/to/backend
-          git pull
-          php artisan migrate
+      # Setup SSH key from GitHub Secrets
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
+      # Install PHP, Composer, and Git (لو السيرفر مش مركب الحاجات دي)
+      - name: Setup Server Dependencies
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
+            sudo apt-get update
+            sudo apt-get install -y php-cli unzip curl git composer
+          "
+
+      # Deploy and run migration
+      - name: Deploy and Migrate
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
+            # إنشاء مجلد الباك لو مش موجود
+            mkdir -p ~/backend
+            cd ~/backend
+
+            # لو git repository موجود، استخدمه، لو لا استنساخ جديد
+            if [ -d .git ]; then
+              git fetch origin
+              git reset --hard origin/master
+            else
+              git clone git@github.com:Uliwazeer/laravel.git .
+            fi
+
+            # تثبيت التبعيات
+            composer install --no-interaction --prefer-dist --optimize-autoloader
+
+            # تشغيل المايجريشن
+            php artisan migrate --force
+          "
