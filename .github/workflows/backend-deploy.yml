@@ -44,7 +44,7 @@ jobs:
             pm2 --version
           EOF
 
-      # Deploy to EC2 server
+      # Deploy Laravel Backend + Setup Nginx + PHP-FPM
       - name: Deploy to EC2 Backend
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 << 'EOF'
@@ -64,6 +64,43 @@ jobs:
             else
               echo "No build script found, skipping build step."
             fi
+
+            echo "💻 Installing Nginx & PHP-FPM..."
+            sudo apt update
+            sudo apt install -y nginx php-fpm php-mysql
+
+            echo "📝 Configuring Nginx for Laravel..."
+            sudo tee /etc/nginx/sites-available/backend > /dev/null <<'NGINXCONF'
+server {
+    listen 8080;
+
+    server_name _;
+
+    root /home/ubuntu/backend/public;
+
+    index index.php index.html;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.2-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+}
+NGINXCONF
+
+            sudo ln -sf /etc/nginx/sites-available/backend /etc/nginx/sites-enabled/
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            echo "🔒 Setting Laravel folder permissions..."
+            sudo chown -R www-data:www-data /home/ubuntu/backend
+            sudo chmod -R 775 /home/ubuntu/backend/storage
+            sudo chmod -R 775 /home/ubuntu/backend/bootstrap/cache
 
             echo "🚀 Restarting application with PM2..."
             if [ -f ecosystem.config.js ]; then
