@@ -1,16 +1,17 @@
 name: Backend Deploy
 
+# Trigger the workflow on push to master branch (غير main لو الفرع عندك master)
 on:
   push:
     branches:
-      - master  # غير main لو الفرع عندك master
+      - master
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
+      # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -20,33 +21,18 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.BACKEND_SSH_KEY }}
 
-      # Install PHP, Composer, and Git (لو السيرفر مش مركب الحاجات دي)
-      - name: Setup Server Dependencies
+      # Install PHP & Composer (Laravel dependencies)
+      - name: Setup PHP and Composer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli unzip curl php-mbstring php-bcmath php-curl php-xml composer git
+
+      # Deploy to EC2 server
+      - name: Deploy to server
         run: |
           ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
-            sudo apt-get update
-            sudo apt-get install -y php-cli unzip curl git composer
-          "
-
-      # Deploy and run migration
-      - name: Deploy and Migrate
-        run: |
-          ssh -o StrictHostKeyChecking=no ubuntu@18.221.228.203 "
-            # إنشاء مجلد الباك لو مش موجود
-            mkdir -p ~/backend
-            cd ~/backend
-
-            # لو git repository موجود، استخدمه، لو لا استنساخ جديد
-            if [ -d .git ]; then
-              git fetch origin
-              git reset --hard origin/master
-            else
-              git clone git@github.com:Uliwazeer/laravel.git .
-            fi
-
-            # تثبيت التبعيات
+            cd ~/backend || mkdir -p ~/backend && cd ~/backend
+            git pull origin master
             composer install --no-interaction --prefer-dist --optimize-autoloader
-
-            # تشغيل المايجريشن
             php artisan migrate --force
           "
