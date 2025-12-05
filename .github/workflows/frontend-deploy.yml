@@ -1,4 +1,4 @@
-name: Frontend CI/CD
+name: Frontend Deploy
 
 on:
   push:
@@ -6,24 +6,23 @@ on:
       - main
 
 jobs:
-  build-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-    - name: Build Step
-      run: echo "Building Frontend..."
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.FRONTEND_SSH_KEY }}
 
-    - name: Deploy Step
-      uses: appleboy/ssh-action@v0.1.6
-      with:
-        host: ${{ secrets.FRONTEND_SERVER_IP }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        script: |
-          cd /path/to/frontend
-          docker-compose pull
-          docker-compose up -d
+      - name: Build Frontend
+        run: |
+          echo "Building Frontend..."
+          docker-compose -f docker-compose.yml build
 
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no ubuntu@18.221.36.156 "cd ~/frontend && docker-compose -f docker-compose.yml pull && docker-compose -f docker-compose.yml up -d"
